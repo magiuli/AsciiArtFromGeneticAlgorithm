@@ -1,10 +1,41 @@
 import os
 import logging
 from typing import List
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageFont, ImageDraw, UnidentifiedImageError
 
 # Configurare logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+
+def render_character(character: str, block_size: tuple[int, int], font : str = "arial.ttf") -> Image.Image:
+    """
+    Randează un caracter ASCII într-o imagine de dimensiuni specificate.
+    """
+    width, height = block_size
+    # Creăm o imagine goală cu fundal negru
+    image = Image.new('L', (width, height), color=0)
+
+    try:
+        # Încercăm să încărcăm fontul specificat
+        font = ImageFont.truetype(font, size=min(width, height)*1.40)
+    except IOError:
+        logging.warning(f"Fontul '{font}' nu a putut fi gasit. Se va folosi fontul implicit.")
+        font = ImageFont.load_default()
+
+    draw = ImageDraw.Draw(image)
+
+    # Obținem “bounding box” al caracterului la poziția 0,0
+    # textbbox returnează tuple (left, top, right, bottom)
+    bbox = draw.textbbox((0, 0), character, font=font)
+    text_width  = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+
+    # Calculăm coordonatele pentru centrare
+    x = (width  - text_width)  // 2 - bbox[0]
+    y = (height - text_height) // 2 - bbox[1]
+
+    draw.text((x, y), character, fill=255, font=font)
+    
+    return image
 
 def get_ascii_characters(source : str = os.path.join("input", "characters.txt")) -> List[str]:
     """
@@ -64,6 +95,7 @@ if __name__ == "__main__":
 
     if ascii_characters:
         logging.info(f"Am obtinut caracterele {ascii_characters} din fisierul de caractere.")
+        render_character(ascii_characters[0], (50, 500), "arial.ttf")  # Randează primul caracter ca exemplu
 
     if image:
         image.show()  # Afișăm imaginea pentru verificare
