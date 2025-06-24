@@ -54,8 +54,18 @@ class Chromosome:
         for y in range(self.height):
             for x in range(self.width):
                 if random.random() < mutation_rate:
-                    self.ascii_image[y][x] = random.choice(self.ascii_character_list)
-
+                    # Folosim guided mutation
+                    if (random.random() < 0.5):
+                        if(self.ascii_image[y][x] == self.ascii_character_list[0]):
+                            self.ascii_image[y][x] = self.ascii_character_list[-1]
+                        else:
+                            self.ascii_image[y][x] = self.ascii_character_list[self.ascii_character_list.index(self.ascii_image[y][x]) - 1]
+                    else:
+                        if(self.ascii_image[y][x] == self.ascii_character_list[-1]):
+                            self.ascii_image[y][x] = self.ascii_character_list[0]
+                        else:
+                            self.ascii_image[y][x] = self.ascii_character_list[self.ascii_character_list.index(self.ascii_image[y][x]) + 1]
+                    
     def print(self) -> None:
         """
         Afișează imaginea ASCII generată.

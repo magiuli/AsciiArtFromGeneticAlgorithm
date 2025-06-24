@@ -6,6 +6,7 @@ from skimage.metrics import structural_similarity as ssim
 import numpy as np
 from chromosome import Chromosome
 import random
+import matplotlib.pyplot as plt
 
 # Configurare logging
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -115,7 +116,12 @@ def image_zone_to_character_similarity(image: Image.Image, character_image: Imag
     character_array = np.array(character_image)
 
     # Calculam similaritatea folosind SSIM
-    similarity = ssim(image_array, character_array)
+    # similarity = ssim(image_array, character_array)/1
+
+    # Calculăm similaritatea folosind L1
+    similarity = np.sum(character_array - image_array) / (image_array.size * 255.0)
+
+    # print(similarity)
 
     return similarity
 
@@ -123,7 +129,8 @@ def finess_function(image: Image.Image,
                     ascii_image: List[List[str]],
                     ascii_characters_images: dict[str, Image.Image],
                     block_size: tuple[int, int],
-                    ascii_art_size: tuple[int, int] = (0, 0)
+                    ascii_art_size: tuple[int, int] = (0, 0),
+                    maximum_similarity = 1
                     ) -> float:
     """
     Evaluează similitudinea dintre imaginea originală și imaginea ASCII generată.
@@ -151,14 +158,13 @@ def finess_function(image: Image.Image,
 
             # Extragem zona din imaginea originală
             image_zone = image.crop((left, top, right, bottom))
-            # image_zone.show()  # Afișăm zona pentru verificare
 
             # Calculăm similaritatea dintre zona din imagine și imaginea caracterului
             similarity = image_zone_to_character_similarity(image_zone, character_image)
             
             fitness += similarity
 
-    return fitness / (ascii_width * ascii_height) if ascii_width * ascii_height > 0 else 0.0
+    return (fitness / (ascii_width * ascii_height)) if ascii_width * ascii_height > 0 else 0.0
 
 def generate_population(size : int) -> List[Chromosome]:
     """
@@ -175,14 +181,14 @@ def evaluate_individuals(population: List[Chromosome],
                         image: Image.Image,
                         ascii_characters_images: dict[str, Image.Image],
                         block_size: tuple[int, int],
-                        ascii_art_size: tuple[int, int] = (0, 0)
+                        ascii_art_size: tuple[int, int] = (0, 0),
+                        maximum_similarity = 1
                         ) -> List[Chromosome]:
     """
     Evaluează populația de cromozomi și le setează fitness-ul.
     """
     for chromosome in population:
-        fitness = finess_function(image, chromosome.ascii_image,
-                                  ascii_characters_images, block_size, ascii_art_size)
+        fitness = finess_function(image, chromosome.ascii_image,ascii_characters_images, block_size, ascii_art_size, maximum_similarity)
         chromosome.set_fitness(fitness)
 
 def evaluate_population(population: List[Chromosome]) -> float:
@@ -195,21 +201,21 @@ def evaluate_population(population: List[Chromosome]) -> float:
 
 def select_parents(population: List[Chromosome], 
                    population_size: int,
-                   tournament_size = 5
+                   tournament_size = 5,
+                   elitism = 3
                    ) -> List[Chromosome]:
     """
     Selectează părinți din populație pe baza fitness-ului.
-    Functia utilizează metoda turneului.
+    Functia utilizează metoda turneului combinata cu elitism.
     """
-    selected_parents = []
-    for _ in range(population_size):
+    selected_parents = sorted(population, key=lambda c: c.fitness, reverse=True)[:elitism]
+    
+    for _ in range(population_size - elitism):
         tournament = random.sample(population, tournament_size)
-        # Sortăm turneul după fitness și selectăm cel mai bun
         best_parent = max(tournament, key=lambda c: c.fitness)
         selected_parents.append(best_parent)
 
     return selected_parents
-
 
 def crossover(parent1: Chromosome, parent2: Chromosome) -> Chromosome:
     """
@@ -234,8 +240,7 @@ def mutate_population(population: List[Chromosome], mutation_rate: float) -> Non
     Efectuează mutații asupra unui cromozom cu o rată specificată.
     """
     for chromosome in population:
-        chromosome.mutate(mutation_rate)
-    
+        chromosome.mutate(mutation_rate)  
 
 def generate_next_generation(parents: List[Chromosome], 
                             population_size: int, 
@@ -256,22 +261,84 @@ def generate_next_generation(parents: List[Chromosome],
 
     return next_generation
 
+
+def generate_ascii_art(image: Image.Image, 
+                        ascii_characters_images: dict[str, Image.Image], 
+                        block_size: tuple[int, int], 
+                        ascii_art_size: tuple[int, int]) :
+    """
+    Generează ASCII art din imaginea dată selectand cel mai potrivit caracter pentru fiecare bloc.
+    """
+    ascii_art = []
+    width, height = image.size
+    block_width, block_height = block_size
+    ascii_width, ascii_height = ascii_art_size
+
+    for y in range(ascii_height):
+        row = []
+        for x in range(ascii_width):
+            # Calculăm coordonatele zonei din imaginea originală
+            left = x * block_width
+            top = y * block_height
+            right = left + block_width
+            bottom = top + block_height
+
+            # Extragem zona din imaginea originală
+            image_zone = image.crop((left, top, right, bottom))
+
+            # Găsim cel mai potrivit caracter pentru această zonă
+            best_character = None
+            best_similarity = -1.0
+
+            for character, char_image in ascii_characters_images.items():
+                similarity = image_zone_to_character_similarity(image_zone, char_image)
+                if similarity > best_similarity:
+                    best_similarity = similarity
+                    best_character = character
+
+            row.append(best_character)
+
+        ascii_art.append(''.join(row))
+    return ascii_art
+
+def introduce_new_chromosomes(population: List[Chromosome],
+                            population_size: int,
+                            new_chromosomes_percentage: float) -> List[Chromosome]:
+    """
+    Introduce un anumit procent de cromozomi noi în populație.
+    """
+    new_chromosomes_count = int(population_size * new_chromosomes_percentage)
+
+    for _ in range(new_chromosomes_count):
+        chromosome = Chromosome()
+        population[random.randint(0, population_size - 1)] = chromosome
+
+    return population
+
 if __name__ == "__main__":
-    font = "arial.ttf"  # Fontul folosit pentru a desena caracterele
-    image_name = "pickachu_fundal_alb.jpg"
-    block_size = (24, 32)
+    font = "DejaVuSansMono.ttf"  # Fontul folosit pentru a desena caracterele
+    image_name = "pickachu_fundal_colorat.jpg"
+    block_size = (8, 16)
 
     # Parametri pentru populatie
-    population_size = 100
-    tournament_size = 4
-    generation_count = 30
-    mutation_rate = 0.02
+    population_size = 200
+    tournament_size = 7
+    generation_count = 400
+    mutation_rate = 0.1
+    base_mutation_rate = 0.06
+    max_mutation_rate = 0.2
+    elitism = 5
+    epsilon = 0.0001
+    past_generation_count = 10
+    introduce_new_chromosomes_interval = 25
+    new_chromosomes_percentage = 0.25
+
     average_fitness_history = []
+    best_fitness_history = []
 
     image_path = os.path.join("input", "images", image_name)
-
-    
     image = preprocess_image(image_path, block_size)
+    
     if image is None:
         logging.error("Imaginea nu a putut fi procesată. Asigurați-vă că calea este corectă și imaginea este validă.")
     else:
@@ -279,10 +346,19 @@ if __name__ == "__main__":
 
     ascii_characters = get_ascii_characters()
 
-    if image and ascii_characters:
+    if ascii_characters:
             # Cream un dictionar carater imagine
         ascii_characters_images = {char: render_character(char, block_size, font) for char in ascii_characters}
 
+        # Generam cel mai bun ASCII art conform functiei de fitness
+        best_ascii_art = generate_ascii_art(image, ascii_characters_images, block_size, ascii_art_size)
+        for line in best_ascii_art:
+            print(line)
+        # evaluam imaginea ASCII generată
+        maximum_fitness = finess_function(image, best_ascii_art, ascii_characters_images, block_size, ascii_art_size)
+        logging.info(f"Fitness-ul imaginii ASCII generate: {maximum_fitness:.4f}")
+
+        # Setăm parametrii pentru cromozomi
         Chromosome.set_ascii_character_list(ascii_characters)
         Chromosome.set_size(ascii_art_size)
 
@@ -292,24 +368,47 @@ if __name__ == "__main__":
         evaluate_individuals(population, image, ascii_characters_images, block_size, ascii_art_size)
         average_fitness_history.append(evaluate_population(population))
         # Selectăm părinți
-        parents = select_parents(population, population_size, tournament_size)
+        parents = select_parents(population, population_size, tournament_size, elitism)
 
         # Generăm următoarea generație
         for generation in range(generation_count):
-            logging.info(f"Generatia {generation + 1}/{generation_count}")
+            print(f"Generatia {generation + 1}/{generation_count}")
             next_generation = generate_next_generation(parents, population_size)
             # Efectuăm mutații
             mutate_population(next_generation, mutation_rate)
             evaluate_individuals(next_generation, image, ascii_characters_images, block_size, ascii_art_size)
             average_fitness = evaluate_population(next_generation)
             average_fitness_history.append(average_fitness)
-            logging.info(f"Fitness-ul mediu al generatiei: {average_fitness:.4f}")
-
+            print(f"Fitness-ul mediu al generatiei: {average_fitness:.4f}")
+            print(f"Rata de mutatie curenta: {mutation_rate}")
             # Pregătim pentru următoarea iterație
             population = next_generation
-            parents = select_parents(population, population_size, tournament_size)
+            parents = select_parents(population, population_size, tournament_size, elitism)
 
-        # Afisam imaginea ASCII generată de cel mai bun cromozom
+            # Afisam imaginea ASCII generată de cel mai bun cromozom pentru fiecare generatie
+            best_chromosome = max(population, key=lambda c: c.fitness)
+            best_fitness_history.append(best_chromosome.fitness)
+            print("Imaginea ASCII generata de cel mai bun cromozom:")
+            best_chromosome.print()
+
+            if generation > past_generation_count and abs(average_fitness_history[-1] - average_fitness_history[-past_generation_count]) <= epsilon:
+                mutation_rate = min(mutation_rate + 0.02, max_mutation_rate)
+            else:
+                mutation_rate = max(mutation_rate - 0.005, base_mutation_rate)
+                
+            if(generation % introduce_new_chromosomes_interval == 0):
+                population = introduce_new_chromosomes(population, population_size, new_chromosomes_percentage)
+        # Salvam imaginea ascii generata de cel mai bun cromozom intr-un fisier text din output si plotam evolutia fitness-ului pe care o salvam tot in fisier
         best_chromosome = max(population, key=lambda c: c.fitness)
-        logging.info("Imaginea ASCII generată de cel mai bun cromozom:")
-        best_chromosome.print()
+        with open(os.path.join("output", "best_ascii_art.txt"), "w") as f:
+            for line in best_chromosome.ascii_image:
+                f.write("".join(line) + "\n")
+        
+        plt.plot(average_fitness_history, label="Fitness mediu")
+        plt.plot(best_fitness_history, label="Fitness cel mai bun")
+        plt.xlabel("Generatia")
+        plt.ylabel("Fitness")
+        plt.title("Evolutia fitness-ului")
+        plt.legend()
+        plt.savefig(os.path.join("output", "fitness_evolution.png"))
+        plt.show()
