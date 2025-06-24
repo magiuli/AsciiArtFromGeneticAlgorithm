@@ -1,0 +1,30 @@
+Generare de ASCII Art folosind Algoritmi Genetici 
+
+ASCII Art este o formă de artă digitală care utilizează caractere alfanumerice și simboluri 
+speciale pentru a reprezenta imagini. Acest proiect propune generarea optimizată de ASCII Art 
+folosind algoritmi genetici (AG) pentru a determina cea mai bună combinație de caractere care 
+să reproducă o imagine sursă.   
+
+Să se implementeze un algoritm genetic care să genereze reprezentări ASCII ale unei imagini 
+date. Să se definească o **funcție de fitness** care să măsoare asemănarea dintre ASCII Art și 
+imaginea originală.   
+
+Date de intrare: 
+● calea catre Imaginea sursă în format grayscale (tonuri de gri). Se va verifica dacă imaginea de input corespunde cerinței, iar dacă nu, la alegerea studentului, fie se va opri programul cu un mesaj, fie se va converti imaginea la grayscale 
+● Setul de caractere ASCII (de exemplu.: `@#%&*+=-:. ` care poate fi dat într-un fișier de input).   
+
+Un cromozom reprezintă o potențială soluție (o imagine ASCII) și poate fi codificat ca o matrice 
+de caractere (fiecare genă este un caracter ASCII plasat într-o anumită poziție) sau ca o listă de 
+caractere și poziții. 
+Funcția de fitness trebuie să măsoare cât de bine aproximăm imaginea originală prin ASCII Art. 
+
+Exemple de aspecte ce pot fi măsurate: 
+● Diferența de intensitate între blocuri de pixeli din imaginea originală și caracterele ASCII 
+alese.   
+● Similaritate structurală (SSIM) pentru a păstra trăsăturile importante.   
+
+Se va analiza evoluția printr-un grafic al fitness-ului pe parcursul generațiilor.   
+
+Imaginea se va genera la o cale de output. Imaginile vor fi în format txt. 
+
+Puteți folosi GPU pentru calcul vectorial.
